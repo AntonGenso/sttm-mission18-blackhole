@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>STTM · Mission 18 — Black Hole</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-deep:#0a1730;
+    --navy:#0e2147;
+    --orange:#f5972a;
+    --orange-bright:#ffb24d;
+    --gold:#ffcf6b;
+    --ink:#0a1428;
+    --white:#ffffff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:'Montserrat',system-ui,sans-serif;
+    background:var(--navy-deep);
+    color:var(--white);
+    overflow:hidden;
+    position:fixed;
+    inset:0;
+    width:100%;
+    -webkit-user-select:none;user-select:none;
+  }
+
+  /* ---------- Stage (phone-native, fills viewport) ---------- */
+  #stage{
+    position:absolute;
+    inset:0;
+    background:#0a1730 url('fon.jpg') no-repeat center center;
+    background-size:cover;
+    display:flex;
+    flex-direction:column;
+    /* readability overlay */
+  }
+  #stage::before{
+    content:"";
+    position:absolute;inset:0;
+    background:
+      linear-gradient(180deg, rgba(7,15,34,.78) 0%, rgba(7,15,34,.30) 22%, rgba(7,15,34,0) 38%),
+      linear-gradient(0deg, rgba(7,15,34,.82) 0%, rgba(7,15,34,.25) 20%, rgba(7,15,34,0) 40%);
+    pointer-events:none;
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    position:relative;
+    z-index:2;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:max(18px,env(safe-area-inset-top)) 20px 0;
+    padding-top:calc(16px + env(safe-area-inset-top));
+  }
+  .mission-tag{
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    color:rgba(255,255,255,.62);
+  }
+  .lang{
+    display:flex;
+    background:rgba(11,24,48,.55);
+    border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;
+    padding:3px;
+    backdrop-filter:blur(6px);
+    -webkit-backdrop-filter:blur(6px);
+  }
+  .lang button{
+    border:0;background:transparent;color:rgba(255,255,255,.7);
+    font-family:inherit;font-weight:800;font-size:12px;letter-spacing:.05em;
+    padding:6px 12px;border-radius:999px;cursor:pointer;transition:.2s;
+  }
+  .lang button.active{background:var(--white);color:var(--ink);}
+
+  /* ---------- Title block ---------- */
+  .head{
+    position:relative;z-index:2;
+    padding:26px 24px 0;
+    text-align:center;
+  }
+  .title{
+    font-weight:900;
+    font-size:clamp(38px,13vw,58px);
+    line-height:.98;
+    letter-spacing:-.01em;
+    text-transform:uppercase;
+    text-shadow:0 6px 26px rgba(0,0,0,.55);
+  }
+  .subtitle{
+    margin-top:12px;
+    font-weight:700;
+    font-size:13px;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--gold);
+  }
+
+  .spacer{flex:1;}
+
+  /* ---------- Play button ---------- */
+  .bottom{
+    position:relative;z-index:2;
+    padding:0 24px calc(34px + env(safe-area-inset-bottom));
+    display:flex;justify-content:center;
+  }
+  .play{
+    width:100%;max-width:340px;
+    border:0;cursor:pointer;
+    font-family:inherit;font-weight:900;
+    font-size:21px;letter-spacing:.04em;
+    color:#3a2200;
+    padding:18px 24px;
+    border-radius:999px;
+    background:linear-gradient(180deg,var(--gold) 0%,var(--orange) 100%);
+    box-shadow:0 12px 30px rgba(245,151,42,.42),
+               inset 0 1px 0 rgba(255,255,255,.5);
+    display:inline-flex;align-items:center;justify-content:center;gap:10px;
+    transition:transform .12s ease, box-shadow .2s ease;
+  }
+  .play:active{transform:translateY(2px) scale(.99);box-shadow:0 6px 16px rgba(245,151,42,.4);}
+  .play .arrow{font-size:22px;transition:transform .2s;}
+  .play:active .arrow{transform:translateX(3px);}
+
+  /* ---------- Reveal animation ---------- */
+  .reveal{opacity:0;transform:translateY(16px);}
+  #stage.show .reveal{
+    animation:rise .6s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+  #stage.show .reveal.d1{animation-delay:.05s;}
+  #stage.show .reveal.d2{animation-delay:.16s;}
+  #stage.show .reveal.d3{animation-delay:.28s;}
+  #stage.show .reveal.d4{animation-delay:.42s;}
+  @keyframes rise{to{opacity:1;transform:translateY(0);}}
+
+  /* ---------- Loading screen ---------- */
+  #loader{
+    position:absolute;inset:0;z-index:50;
+    background:radial-gradient(120% 90% at 50% 18%,#15294f 0%,#0a1730 55%,#070f22 100%);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:0;
+    transition:opacity .5s ease;
+  }
+  #loader.hide{opacity:0;pointer-events:none;}
+  .loader-logo{
+    font-weight:900;font-size:13px;letter-spacing:.42em;
+    color:rgba(255,255,255,.85);text-transform:uppercase;
+    margin-bottom:8px;
+  }
+  .loader-sub{
+    font-weight:700;font-size:11px;letter-spacing:.3em;
+    color:rgba(255,255,255,.4);text-transform:uppercase;
+    margin-bottom:42px;
+  }
+  .bar-wrap{
+    width:min(74vw,300px);
+    height:8px;
+    border-radius:999px;
+    background:rgba(255,255,255,.10);
+    overflow:hidden;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);
+  }
+  .bar-fill{
+    height:100%;width:0%;
+    border-radius:999px;
+    background:linear-gradient(90deg,var(--orange) 0%,var(--gold) 100%);
+    box-shadow:0 0 14px rgba(245,151,42,.7);
+    transition:width .2s ease-out;
+  }
+  .bar-meta{
+    margin-top:16px;
+    display:flex;justify-content:space-between;
+    width:min(74vw,300px);
+    font-weight:700;font-size:12px;letter-spacing:.16em;
+    color:rgba(255,255,255,.55);text-transform:uppercase;
+  }
+  #pct{color:var(--orange-bright);}
+
+  /* spinning halo behind logo */
+  .halo{
+    position:absolute;top:18%;left:50%;transform:translateX(-50%);
+    width:160px;height:160px;border-radius:50%;
+    background:radial-gradient(circle, rgba(245,151,42,.22) 0%, rgba(245,151,42,0) 70%);
+    filter:blur(2px);
+    animation:pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:.5;transform:translateX(-50%) scale(.9);}50%{opacity:1;transform:translateX(-50%) scale(1.1);}}
+</style>
+</head>
+<body>
+
+  <!-- ===== MAIN MENU ===== -->
+  <main id="stage">
+    <div class="topbar">
+      <span class="mission-tag reveal d1" id="missionTag">STTM · Mission 18</span>
+      <nav class="lang reveal d1">
+        <button data-lang="uz">UZ</button>
+        <button data-lang="ru">RU</button>
+        <button data-lang="en" class="active">EN</button>
+      </nav>
+    </div>
+
+    <div class="head">
+      <h1 class="title reveal d2" id="title">BLACK HOLE</h1>
+      <p class="subtitle reveal d3" id="subtitle">The point of no return</p>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="bottom">
+      <button class="play reveal d4" id="playBtn">
+        <span id="playLabel">PLAY</span><span class="arrow">›</span>
+      </button>
+    </div>
+  </main>
+
+  <!-- ===== LOADING SCREEN ===== -->
+  <div id="loader">
+    <div class="halo"></div>
+    <div class="loader-logo">STEP&nbsp;TO&nbsp;THE&nbsp;MOON</div>
+    <div class="loader-sub">Mission 18 · Black Hole</div>
+    <div class="bar-wrap"><div class="bar-fill" id="barFill"></div></div>
+    <div class="bar-meta">
+      <span id="loadWord">Loading</span>
+      <span id="pct">0%</span>
+    </div>
+  </div>
+
+<script>
+/* ---------- i18n ---------- */
+const I18N = {
+  uz:{title:"QORA TUYNUK", subtitle:"Qaytib bo'lmas nuqta", play:"O'YNASH", load:"Yuklanmoqda"},
+  ru:{title:"ЧЁРНАЯ ДЫРА", subtitle:"Точка невозврата",     play:"ИГРАТЬ",  load:"Загрузка"},
+  en:{title:"BLACK HOLE",  subtitle:"The point of no return", play:"PLAY",    load:"Loading"}
+};
+let lang = "en";
+
+function applyLang(l){
+  lang = l;
+  const t = I18N[l];
+  document.documentElement.lang = l;
+  document.getElementById('title').textContent = t.title;
+  document.getElementById('subtitle').textContent = t.subtitle;
+  document.getElementById('playLabel').textContent = t.play;
+  document.getElementById('loadWord').textContent = t.load;
+  document.querySelectorAll('.lang button').forEach(b=>
+    b.classList.toggle('active', b.dataset.lang===l));
+}
+document.querySelectorAll('.lang button').forEach(b=>
+  b.addEventListener('click',()=>applyLang(b.dataset.lang)));
+
+/* ---------- PLAY ---------- */
+/* keeps ?nickname=... and &lang=... so the game can read the player + language */
+document.getElementById('playBtn').addEventListener('click',()=>{
+  const p = new URLSearchParams(window.location.search);
+  p.set('lang', lang);
+  window.location.href = 'game.html?' + p.toString();
+});
+
+/* ---------- Pseudo loader ---------- */
+(function(){
+  const fill = document.getElementById('barFill');
+  const pctEl = document.getElementById('pct');
+  const loader = document.getElementById('loader');
+  const stage  = document.getElementById('stage');
+
+  let progress = 0;
+  let assetReady = false;
+  const start = Date.now();
+  const MIN_MS = 1100; // minimum time the loader is visible
+
+  // preload the background image
+  const img = new Image();
+  img.onload = img.onerror = () => { assetReady = true; };
+  img.src = 'fon.jpg';
+
+  function setPct(v){
+    progress = v;
+    fill.style.width = v + '%';
+    pctEl.textContent = Math.round(v) + '%';
+  }
+
+  const tick = setInterval(()=>{
+    const enoughTime = (Date.now() - start) >= MIN_MS;
+    const canFinish = assetReady && enoughTime;
+
+    if(canFinish){
+      setPct(100);
+      clearInterval(tick);
+      setTimeout(()=>{
+        loader.classList.add('hide');
+        stage.classList.add('show');     // trigger menu reveal
+      }, 260);
+    } else {
+      // ease toward 90%, never reaching 100 until the asset is ready
+      const target = 90;
+      progress += (target - progress) * 0.12 + 0.6;
+      if(progress > 90) progress = 90;
+      setPct(progress);
+    }
+  }, 90);
+})();
+</script>
+</body>
+</html>
