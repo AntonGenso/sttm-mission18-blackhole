@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>STTM · Mission 18 — Black Hole</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{ --orange:#f5972a; --gold:#ffcf6b; --navy:#0e1f3d; }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;}
+  html,body{height:100%;overflow:hidden;}
+  body{position:fixed;inset:0;background:var(--navy);font-family:'Montserrat',system-ui,sans-serif;color:#fff;touch-action:none;}
+  #game{display:block;position:absolute;inset:0;width:100%;height:100%;touch-action:none;}
+
+  #hud{position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;justify-content:space-between;
+       padding:calc(12px + env(safe-area-inset-top)) 16px 12px;pointer-events:none;}
+  .hud-pill{background:rgba(8,18,40,.55);border:1px solid rgba(255,255,255,.14);border-radius:999px;
+            padding:6px 12px;font-size:13px;font-weight:800;letter-spacing:.04em;backdrop-filter:blur(6px);}
+  #hearts{display:flex;gap:4px;font-size:18px;line-height:1;}
+  #hearts span{transition:opacity .2s;color:#ff6b6b;}
+  #hearts span.off{opacity:.22;}
+
+  #ov{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:6px;text-align:center;padding:32px;background:radial-gradient(120% 90% at 50% 35%,rgba(21,41,79,.86),rgba(7,15,34,.94));
+      transition:opacity .3s;}
+  #ov.hide{opacity:0;pointer-events:none;}
+  #ov .big{font-size:clamp(30px,9vw,46px);font-weight:900;text-transform:uppercase;line-height:1;text-shadow:0 6px 22px rgba(0,0,0,.5);}
+  #ov .sub{font-size:14px;font-weight:700;letter-spacing:.04em;color:var(--gold);max-width:300px;line-height:1.5;margin-top:6px;}
+  #ov .lvtag{font-size:12px;font-weight:800;letter-spacing:.24em;color:rgba(255,255,255,.6);text-transform:uppercase;}
+  #ov .pts{font-size:54px;font-weight:900;color:var(--gold);margin:4px 0;}
+  #ov .btns{display:flex;gap:12px;margin-top:20px;flex-wrap:wrap;justify-content:center;}
+  #ov button{border:0;cursor:pointer;font-family:inherit;font-weight:900;font-size:18px;letter-spacing:.04em;
+             color:#3a2200;padding:14px 34px;border-radius:999px;
+             background:linear-gradient(180deg,var(--gold),var(--orange));
+             box-shadow:0 10px 26px rgba(245,151,42,.4),inset 0 1px 0 rgba(255,255,255,.5);}
+  #ov button.ghost{background:none;color:#fff;border:1.5px solid rgba(255,255,255,.4);box-shadow:none;}
+  #ov button:active{transform:translateY(2px);}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <span class="hud-pill" id="lvl">1 / 4</span>
+  <span class="hud-pill" id="score">0</span>
+  <span class="hud-pill" id="hearts"></span>
+</div>
+
+<div id="ov">
+  <div class="lvtag" id="ovTag"></div>
+  <div class="big" id="ovTitle"></div>
+  <div class="pts" id="ovPts" style="display:none"></div>
+  <div class="sub" id="ovSub"></div>
+  <div class="btns">
+    <button id="ovBtn"></button>
+    <button id="ovBtn2" class="ghost" style="display:none"></button>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const NICK = params.get('nickname') || '';
+let LANG = (params.get('lang') || 'ru').toLowerCase();
+if(!['ru','en','uz'].includes(LANG)) LANG='ru';
+
+const STR = {
+  ru:{goal:'Ешь числа меньше себя, дорасти и проглоти босса', start:'Играть',
+      clear:'Уровень пройден', cont:'Дальше', over:'Game over', retry:'Заново', menu:'Меню',
+      win:'Победа', winsub:'Все боссы повержены', again:'Заново', lvl:'Уровень'},
+  en:{goal:'Eat numbers smaller than you, grow and swallow the boss', start:'Play',
+      clear:'Level complete', cont:'Next', over:'Game over', retry:'Retry', menu:'Menu',
+      win:'You win', winsub:'All bosses defeated', again:'Again', lvl:'Level'},
+  uz:{goal:"O'zingdan kichik raqamlarni ye, o'sib bossni yut", start:"O'ynash",
+      clear:'Bosqich tugadi', cont:'Keyingi', over:'Game over', retry:'Qayta', menu:'Menyu',
+      win:"G'alaba", winsub:"Barcha bosslar mag'lub", again:'Qayta', lvl:'Bosqich'}
+};
+const T = STR[LANG];
+
+const LEVELS = [
+  { boss:8,   pos:[[1,.28,.30],[2,.72,.30],[4,.30,.66],[8,.66,.72]] },
+  { boss:20,  pos:[[1,.22,.34],[3,.50,.30],[2,.78,.40],[5,.30,.62],[8,.70,.60],[20,.50,.84]] },
+  { boss:50,  pos:[[1,.20,.30],[2,.44,.26],[3,.74,.32],[5,.24,.54],[8,.74,.56],[12,.46,.62],[18,.30,.80],[50,.66,.82]] },
+  { boss:114, pos:[[1,.20,.28],[2,.42,.24],[3,.66,.26],[5,.82,.42],[8,.24,.46],[12,.50,.46],[18,.74,.62],[26,.30,.66],[38,.50,.80],[114,.72,.84]] }
+];
+
+const cv=document.getElementById('game'), ctx=cv.getContext('2d');
+const ovEl=document.getElementById('ov'), lvlEl=document.getElementById('lvl'),
+      scoreEl=document.getElementById('score'), heartsEl=document.getElementById('hearts');
+
+let W,H,dpr,unit, dots=[], objs=[], parts=[], hole, spin=0, state='intro',
+    level=0, lives=3, cleared=0, flash=0, drag=false, lx=0, ly=0,
+    killer=null, dT=0, dAng=0, dRad=0, dHR=0;
+
+const rOf = v => unit*Math.pow(v,0.34);
+
+function resize(){
+  W=window.innerWidth; H=window.innerHeight; dpr=window.devicePixelRatio||1;
+  cv.width=W*dpr; cv.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+  unit=Math.min(W,H)/34;
+  buildDots();
+  objs.forEach(o=>{ o.r0=rOf(o.v); if(!o.gone&&state!=='dying'){o.x=o.bx*W; o.y=o.by*H; o.r=o.r0;} });
+  separate();
+  if(hole){ hole.r=rOf(hole.v); clampHole(); }
+}
+function buildDots(){
+  dots=[]; const g=Math.max(13,Math.round(Math.min(W,H)/26));
+  for(let x=g/2;x<W;x+=g) for(let y=g/2;y<H;y+=g) dots.push({hx:x,hy:y,x:x,y:y});
+}
+function clampHole(){ hole.x=Math.min(Math.max(hole.x,hole.r),W-hole.r); hole.y=Math.min(Math.max(hole.y,hole.r),H-hole.r); }
+
+function separate(){
+  const live=objs.filter(o=>!o.gone), yMin=H*0.19, gap=10;
+  for(let it=0;it<220;it++){
+    for(let i=0;i<live.length;i++) for(let j=i+1;j<live.length;j++){
+      const a=live[i], b=live[j], dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||0.01, min=a.r+b.r+gap;
+      if(d<min){ const f=(min-d)/2/d, ox=dx*f, oy=dy*f; a.x-=ox; a.y-=oy; b.x+=ox; b.y+=oy; }
+    }
+    for(const o of live){
+      o.x=Math.min(Math.max(o.x,o.r+6),W-o.r-6);
+      o.y=Math.min(Math.max(o.y,yMin+o.r),H-o.r-6);
+    }
+  }
+}
+
+function loadLevel(i){
+  level=i; const L=LEVELS[i];
+  objs = L.pos.map(p=>({v:p[0], bx:p[1], by:p[2], x:p[1]*W, y:p[2]*H, r:rOf(p[0]), r0:rOf(p[0]), boss:p[0]===L.boss, gone:false, suck:false, pulse:0}));
+  separate();
+  hole = {x:W*.5, y:H*.12, v:2, r:rOf(2)};
+  parts=[]; killer=null; clampHole();
+  lvlEl.textContent=(i+1)+' / 4';
+  renderHUD();
+}
+function renderHUD(){
+  scoreEl.textContent = cleared*25;
+  let s=''; for(let k=0;k<3;k++) s+='<span class="'+(k<lives?'':'off')+'">&#9829;</span>';
+  heartsEl.innerHTML=s;
+}
+function submitScore(v){ try{ window.parent.postMessage({type:'SUBMIT_SCORE', score:v}, '*'); }catch(e){} }
+
+function showOverlay(o){
+  document.getElementById('ovTag').textContent=o.tag||'';
+  document.getElementById('ovTitle').textContent=o.title||'';
+  document.getElementById('ovSub').textContent=o.sub||'';
+  const p=document.getElementById('ovPts');
+  if(o.pts!=null){ p.style.display='block'; p.textContent='+'+o.pts; } else p.style.display='none';
+  const b1=document.getElementById('ovBtn'), b2=document.getElementById('ovBtn2');
+  b1.textContent=o.btn||''; ovEl._n1=o.next;
+  if(o.btn2){ b2.style.display=''; b2.textContent=o.btn2; ovEl._n2=o.next2; } else { b2.style.display='none'; ovEl._n2=null; }
+  ovEl.classList.remove('hide');
+}
+function hideOverlay(){ ovEl.classList.add('hide'); }
+
+function goMenu(){ const q=new URLSearchParams(); if(NICK)q.set('nickname',NICK); q.set('lang',LANG); location.href='index.html?'+q.toString(); }
+function startRun(){ cleared=0; lives=3; loadLevel(0); intro(); }
+function intro(){ state='intro'; showOverlay({tag:(NICK?NICK+' · ':'')+T.lvl+' '+(level+1), title:'BLACK HOLE', sub:T.goal, btn:T.start, next:()=>{hideOverlay(); state='play';}}); }
+
+function spawnBurst(x,y,n){ for(let k=0;k<n;k++){ const a=Math.random()*6.28, sp=rOf(2)+Math.random()*10;
+  parts.push({x:x+Math.cos(a)*sp, y:y+Math.sin(a)*sp, life:1}); } }
+
+function bossEaten(){
+  state='clear'; cleared++; if(lives<3) lives++; renderHUD();
+  submitScore(cleared*25);
+  if(level>=3){ state='win';
+    showOverlay({title:T.win, pts:100, sub:T.winsub, btn:T.again, next:()=>{hideOverlay(); startRun();}});
+  } else {
+    showOverlay({tag:T.lvl+' '+(level+1), title:T.clear, pts:25, btn:T.cont, next:()=>{hideOverlay(); loadLevel(level+1); state='play';}});
+  }
+}
+function startDeath(o){
+  state='dying'; killer=o;
+  dAng=Math.atan2(hole.y-o.y, hole.x-o.x);
+  dRad=Math.hypot(hole.x-o.x, hole.y-o.y)||1; dHR=hole.r; dT=0;
+}
+function finalizeDeath(){
+  lives--; renderHUD(); flash=1;
+  if(lives<=0){ state='over'; showOverlay({title:T.over, btn:T.retry, next:()=>{hideOverlay(); startRun();}, btn2:T.menu, next2:goMenu}); }
+  else { loadLevel(level); state='play'; }
+}
+
+function step(){
+  if(state!=='play') return;
+  for(const o of objs){
+    if(o.gone) continue;
+    let dx=o.x-hole.x, dy=o.y-hole.y, d=Math.hypot(dx,dy)||1;
+    if(o.v<hole.v){
+      if(o.suck || d < hole.r*2.4 + 30){
+        o.suck=true;
+        let ang=Math.atan2(dy,dx)+0.26, rad=Math.max(0, d-Math.max(2.5,d*0.20));
+        o.x=hole.x+Math.cos(ang)*rad; o.y=hole.y+Math.sin(ang)*rad;
+        o.r=o.r0*Math.min(1,rad/(hole.r*1.5));
+        if(rad < hole.r*0.4){ o.gone=true; hole.v+=o.v; hole.r=rOf(hole.v); spawnBurst(o.x,o.y,7); renderHUD();
+          if(o.boss){ bossEaten(); return; } }
+      }
+    } else if(o.v>hole.v){
+      if(d < o.r+hole.r*0.25){ hole.x+=dx*0.30; hole.y+=dy*0.30; }
+      if(d < o.r){ startDeath(o); return; }
+    } else {
+      if(d < hole.r+o.r+26){ o.pulse=1; }
+      if(d < hole.r+o.r){ const a=Math.atan2(-dy,-dx), s=hole.r+o.r+2; hole.x=o.x+Math.cos(a)*s; hole.y=o.y+Math.sin(a)*s; }
+    }
+  }
+  clampHole();
+}
+
+function draw(){
+  step(); spin+=0.03;
+  if(state==='dying'){
+    dT++; dAng+=0.34; const rad=Math.max(0, dRad*(1-dT/46));
+    hole.x=killer.x+Math.cos(dAng)*rad; hole.y=killer.y+Math.sin(dAng)*rad;
+    hole.r=Math.max(2, dHR*(1-dT/46)); flash=Math.min(0.85, dT/26);
+    if(dT>=46){ finalizeDeath(); }
+  }
+  ctx.fillStyle='#0e1f3d'; ctx.fillRect(0,0,W,H);
+  const R=hole.r*3.4+60;
+  ctx.fillStyle='#ffffff';
+  for(const dt of dots){
+    const dx=dt.hx-hole.x, dy=dt.hy-hole.y, d=Math.hypot(dx,dy)||1;
+    let ox=dt.hx, oy=dt.hy;
+    if(d<R){ const push=(R-d)/R*30; ox=dt.hx+dx/d*push; oy=dt.hy+dy/d*push; }
+    dt.x+=(ox-dt.x)*0.16; dt.y+=(oy-dt.y)*0.16;
+    ctx.globalAlpha = d<R ? 0.85 : 0.38;
+    ctx.fillRect(dt.x-1, dt.y-1, 2, 2);
+  }
+  ctx.globalAlpha=1;
+  for(const o of objs){
+    if(o.gone) continue;
+    const rr = o.r*(1 + 0.10*o.pulse);
+    ctx.fillStyle='#27457a'; ctx.lineWidth = o.pulse>0.02 ? 3 : 1.5;
+    ctx.strokeStyle = o.pulse>0.02 ? 'rgba(245,151,42,'+(0.4+0.6*o.pulse)+')' : '#5b86c9';
+    ctx.beginPath(); ctx.arc(o.x,o.y,rr,0,7); ctx.fill(); ctx.stroke();
+    if(o.r>7){ ctx.fillStyle='#dbe8ff'; ctx.font='800 '+Math.round(o.r*1.05)+'px Montserrat,sans-serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(o.v,o.x,o.y+1); }
+    if(o.pulse>0) o.pulse*=0.90;
+  }
+  for(let i=parts.length-1;i>=0;i--){ const pa=parts[i]; pa.x+=(hole.x-pa.x)*0.22; pa.y+=(hole.y-pa.y)*0.22; pa.life-=0.06;
+    if(pa.life<=0){ parts.splice(i,1); continue; }
+    ctx.globalAlpha=pa.life; ctx.fillStyle='#ffcf6b'; ctx.fillRect(pa.x-1.5,pa.y-1.5,3,3); }
+  ctx.globalAlpha=1;
+  ctx.fillStyle='#05080f'; ctx.beginPath(); ctx.arc(hole.x,hole.y,hole.r,0,7); ctx.fill();
+  ctx.lineWidth=2; ctx.strokeStyle='rgba(245,151,42,.55)';
+  for(let a=0;a<2;a++){ ctx.beginPath(); ctx.arc(hole.x,hole.y,hole.r*(1.28+a*0.22),spin+a*2.1,spin+a*2.1+2.0); ctx.stroke(); }
+  ctx.strokeStyle='#f5972a'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(hole.x,hole.y,hole.r,0,7); ctx.stroke();
+  if(hole.r>7){ ctx.fillStyle='#ffcf6b'; ctx.font='900 '+Math.round(hole.r*0.95)+'px Montserrat,sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(hole.v,hole.x,hole.y+1); }
+  if(flash>0){ ctx.globalAlpha=flash*0.5; ctx.fillStyle='#e24b4a'; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1; if(state!=='dying') flash-=0.05; }
+  requestAnimationFrame(draw);
+}
+
+function pt(e){ const r=cv.getBoundingClientRect(); const t=e.touches?e.touches[0]:e; return {x:t.clientX-r.left,y:t.clientY-r.top}; }
+cv.addEventListener('pointerdown',e=>{ if(state!=='play')return; drag=true; const p=pt(e); lx=p.x; ly=p.y; });
+window.addEventListener('pointermove',e=>{ if(!drag||state!=='play')return; const p=pt(e); hole.x+=(p.x-lx)*1.5; hole.y+=(p.y-ly)*1.5; lx=p.x; ly=p.y; },{passive:true});
+window.addEventListener('pointerup',()=>{ drag=false; });
+document.getElementById('ovBtn').addEventListener('click',()=>{ if(ovEl._n1) ovEl._n1(); });
+document.getElementById('ovBtn2').addEventListener('click',()=>{ if(ovEl._n2) ovEl._n2(); });
+window.addEventListener('resize',resize);
+
+resize(); startRun(); requestAnimationFrame(draw);
+</script>
+</body>
+</html>
